@@ -55,7 +55,7 @@ class NuScenesDataset(DefaultDataset):
 
     def get_data(self, idx):
         data = self.data_list[idx % len(self.data_list)]
-        lidar_path = os.path.join(self.data_root, "raw", data["lidar_path"])
+        lidar_path = os.path.join(self.data_root, data["lidar_path"])
         points = np.fromfile(str(lidar_path), dtype=np.float32, count=-1).reshape(
             [-1, 5]
         )
@@ -64,7 +64,7 @@ class NuScenesDataset(DefaultDataset):
 
         if "gt_segment_path" in data.keys():
             gt_segment_path = os.path.join(
-                self.data_root, "raw", data["gt_segment_path"]
+                self.data_root, data["gt_segment_path"]
             )
             segment = np.fromfile(
                 str(gt_segment_path), dtype=np.uint8, count=-1

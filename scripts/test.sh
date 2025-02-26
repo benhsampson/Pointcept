@@ -9,7 +9,7 @@ DATASET=scannet
 CONFIG="None"
 EXP_NAME=debug
 WEIGHT=model_best
-GPU=None
+NUM_GPU=None
 
 while getopts "p:d:c:n:w:g:" opt; do
   case $opt in
@@ -29,7 +29,7 @@ while getopts "p:d:c:n:w:g:" opt; do
       WEIGHT=$OPTARG
       ;;
     g)
-      GPU=$OPTARG
+      NUM_GPU=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG"
@@ -45,7 +45,7 @@ fi
 echo "Experiment name: $EXP_NAME"
 echo "Python interpreter dir: $PYTHON"
 echo "Dataset: $DATASET"
-echo "GPU Num: $GPU"
+echo "GPU Num: $NUM_GPU"
 
 EXP_DIR=exp/${DATASET}/${EXP_NAME}
 MODEL_DIR=${EXP_DIR}/model
@@ -70,5 +70,5 @@ echo " =========> RUN TASK <========="
 #$PYTHON -u "$CODE_DIR"/tools/$TEST_CODE \
 $PYTHON -u tools/$TEST_CODE \
   --config-file "$CONFIG_DIR" \
-  --num-gpus "$GPU" \
+  --num-gpus "$NUM_GPU" \
   --options save_path="$EXP_DIR" weight="${MODEL_DIR}"/"${WEIGHT}".pth

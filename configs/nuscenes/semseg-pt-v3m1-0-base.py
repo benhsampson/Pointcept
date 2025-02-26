@@ -66,7 +66,7 @@ param_dicts = [dict(keyword="block", lr=0.0002)]
 
 # dataset settings
 dataset_type = "NuScenesDataset"
-data_root = "data/nuscenes"
+data_root = "/mnt/d/nuscenes/nuScenes-lidarseg-all-v1.0"
 ignore_index = -1
 names = [
     "barrier",

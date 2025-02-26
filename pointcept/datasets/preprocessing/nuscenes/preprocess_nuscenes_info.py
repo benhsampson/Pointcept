@@ -309,7 +309,8 @@ def obtain_sensor2top(
 
 
 def fill_trainval_infos(
-    data_path, nusc, train_scenes, test=False, max_sweeps=10, with_camera=False
+    data_path, nusc, train_scenes, test=False, max_sweeps=10, with_camera=False,
+    train_only=False
 ):
     train_nusc_infos = []
     val_nusc_infos = []
@@ -320,7 +321,8 @@ def fill_trainval_infos(
     ref_chan = "LIDAR_TOP"  # The radar channel from which we track back n sweeps to aggregate the point cloud.
     chan = "LIDAR_TOP"  # The reference channel of the current sample_rec that the point clouds are mapped to.
 
-    for index, sample in enumerate(nusc.sample):
+    samples=filter(lambda x: x["scene_token"] in train_scenes, nusc.sample) if train_only else nusc.sample
+    for index, sample in enumerate(samples):
         progress_bar.update()
 
         ref_sd_token = sample["data"][ref_chan]
@@ -518,90 +520,155 @@ if __name__ == "__main__":
         default=False,
         help="Whether use camera or not.",
     )
+    parser.add_argument(
+        '--mini',
+        action='store_true',
+        default=False,
+        help='Whether to use the mini dataset or not.'
+    )
     config = parser.parse_args()
 
-    print(f"Loading nuScenes tables for version v1.0-trainval...")
-    nusc_trainval = NuScenes(
-        version="v1.0-trainval", dataroot=config.dataset_root, verbose=False
-    )
-    available_scenes_trainval = get_available_scenes(nusc_trainval)
-    available_scene_names_trainval = [s["name"] for s in available_scenes_trainval]
-    print("total scene num:", len(nusc_trainval.scene))
-    print("exist scene num:", len(available_scenes_trainval))
-    assert len(available_scenes_trainval) == len(nusc_trainval.scene) == 850
+    if config.mini:
+        print('Loading nuScenes tables for version v1.0-mini...')
+        nusc_mini=NuScenes(version='v1.0-mini',dataroot=config.dataset_root,verbose=True)
+        available_scenes_mini=get_available_scenes(nusc_mini)
+        available_scenes_names_mini=[s["name"] for s in available_scenes_mini]
+        print("total scene num:", len(nusc_mini.scene))
+        print("exist scene num:", len(available_scenes_mini))
 
-    print(f"Loading nuScenes tables for version v1.0-test...")
-    nusc_test = NuScenes(
-        version="v1.0-test", dataroot=config.dataset_root, verbose=False
-    )
-    available_scenes_test = get_available_scenes(nusc_test)
-    available_scene_names_test = [s["name"] for s in available_scenes_test]
-    print("total scene num:", len(nusc_test.scene))
-    print("exist scene num:", len(available_scenes_test))
-    assert len(available_scenes_test) == len(nusc_test.scene) == 150
+        train_scenes = splits.mini_train
+        train_scenes = set(
+            [
+                available_scenes_mini[available_scenes_names_mini.index(s)]["token"]
+                for s in train_scenes
+            ]
+        )
+        
+        val_scenes = splits.mini_val
+        val_scenes = set(
+            [
+                available_scenes_mini[available_scenes_names_mini.index(s)]["token"]
+                for s in val_scenes
+            ]
+        )
+        
+        print(f"Filling trainval information...")
+        train_nusc_infos, val_nusc_infos = fill_trainval_infos(
+            config.dataset_root,
+            nusc_mini,
+            train_scenes,
+            test=False,
+            max_sweeps=config.max_sweeps,
+            with_camera=config.with_camera,
+        )
+        
+        print(f"Saving nuScenes information...")
+        os.makedirs(os.path.join(config.output_root, "info"), exist_ok=True)
+        print(
+            f"train sample: {len(train_nusc_infos)}, val sample: {len(val_nusc_infos)}"
+        )
+        with open(
+            os.path.join(
+                config.output_root,
+                "info",
+                f"nuscenes_infos_{config.max_sweeps}sweeps_train.pkl",
+            ),
+            "wb",
+        ) as f:
+            pickle.dump(train_nusc_infos, f)
+        with open(
+            os.path.join(
+                config.output_root,
+                "info",
+                f"nuscenes_infos_{config.max_sweeps}sweeps_val.pkl",
+            ),
+            "wb",
+        ) as f:
+            pickle.dump(val_nusc_infos, f)
+    
+    else:
+        print(f"Loading nuScenes tables for version v1.0-trainval...")
+        nusc_trainval = NuScenes(
+            version="v1.0-trainval", dataroot=config.dataset_root, verbose=False
+        )
+        available_scenes_trainval = get_available_scenes(nusc_trainval)
+        available_scene_names_trainval = [s["name"] for s in available_scenes_trainval]
+        print("total scene num:", len(nusc_trainval.scene))
+        print("exist scene num:", len(available_scenes_trainval))
+        assert len(available_scenes_trainval) == len(nusc_trainval.scene) == 850
 
-    train_scenes = splits.train
-    train_scenes = set(
-        [
-            available_scenes_trainval[available_scene_names_trainval.index(s)]["token"]
-            for s in train_scenes
-        ]
-    )
-    test_scenes = splits.test
-    test_scenes = set(
-        [
-            available_scenes_test[available_scene_names_test.index(s)]["token"]
-            for s in test_scenes
-        ]
-    )
-    print(f"Filling trainval information...")
-    train_nusc_infos, val_nusc_infos = fill_trainval_infos(
-        config.dataset_root,
-        nusc_trainval,
-        train_scenes,
-        test=False,
-        max_sweeps=config.max_sweeps,
-        with_camera=config.with_camera,
-    )
-    print(f"Filling test information...")
-    test_nusc_infos, _ = fill_trainval_infos(
-        config.dataset_root,
-        nusc_test,
-        test_scenes,
-        test=True,
-        max_sweeps=config.max_sweeps,
-        with_camera=config.with_camera,
-    )
+        print(f"Loading nuScenes tables for version v1.0-test...")
+        nusc_test = NuScenes(
+            version="v1.0-test", dataroot=config.dataset_root, verbose=False
+        )
+        available_scenes_test = get_available_scenes(nusc_test)
+        available_scene_names_test = [s["name"] for s in available_scenes_test]
+        print("total scene num:", len(nusc_test.scene))
+        print("exist scene num:", len(available_scenes_test))
+        assert len(available_scenes_test) == len(nusc_test.scene) == 150
 
-    print(f"Saving nuScenes information...")
-    os.makedirs(os.path.join(config.output_root, "info"), exist_ok=True)
-    print(
-        f"train sample: {len(train_nusc_infos)}, val sample: {len(val_nusc_infos)}, test sample: {len(test_nusc_infos)}"
-    )
-    with open(
-        os.path.join(
-            config.output_root,
-            "info",
-            f"nuscenes_infos_{config.max_sweeps}sweeps_train.pkl",
-        ),
-        "wb",
-    ) as f:
-        pickle.dump(train_nusc_infos, f)
-    with open(
-        os.path.join(
-            config.output_root,
-            "info",
-            f"nuscenes_infos_{config.max_sweeps}sweeps_val.pkl",
-        ),
-        "wb",
-    ) as f:
-        pickle.dump(val_nusc_infos, f)
-    with open(
-        os.path.join(
-            config.output_root,
-            "info",
-            f"nuscenes_infos_{config.max_sweeps}sweeps_test.pkl",
-        ),
-        "wb",
-    ) as f:
-        pickle.dump(test_nusc_infos, f)
+        train_scenes = splits.train
+        train_scenes = set(
+            [
+                available_scenes_trainval[available_scene_names_trainval.index(s)]["token"]
+                for s in train_scenes
+            ]
+        )
+        test_scenes = splits.test
+        test_scenes = set(
+            [
+                available_scenes_test[available_scene_names_test.index(s)]["token"]
+                for s in test_scenes
+            ]
+        )
+        print(f"Filling trainval information...")
+        train_nusc_infos, val_nusc_infos = fill_trainval_infos(
+            config.dataset_root,
+            nusc_trainval,
+            train_scenes,
+            test=False,
+            max_sweeps=config.max_sweeps,
+            with_camera=config.with_camera,
+        )
+        print(f"Filling test information...")
+        test_nusc_infos, _ = fill_trainval_infos(
+            config.dataset_root,
+            nusc_test,
+            test_scenes,
+            test=True,
+            max_sweeps=config.max_sweeps,
+            with_camera=config.with_camera,
+        )
+
+        print(f"Saving nuScenes information...")
+        os.makedirs(os.path.join(config.output_root, "info"), exist_ok=True)
+        print(
+            f"train sample: {len(train_nusc_infos)}, val sample: {len(val_nusc_infos)}, test sample: {len(test_nusc_infos)}"
+        )
+        with open(
+            os.path.join(
+                config.output_root,
+                "info",
+                f"nuscenes_infos_{config.max_sweeps}sweeps_train.pkl",
+            ),
+            "wb",
+        ) as f:
+            pickle.dump(train_nusc_infos, f)
+        with open(
+            os.path.join(
+                config.output_root,
+                "info",
+                f"nuscenes_infos_{config.max_sweeps}sweeps_val.pkl",
+            ),
+            "wb",
+        ) as f:
+            pickle.dump(val_nusc_infos, f)
+        with open(
+            os.path.join(
+                config.output_root,
+                "info",
+                f"nuscenes_infos_{config.max_sweeps}sweeps_test.pkl",
+            ),
+            "wb",
+        ) as f:
+            pickle.dump(test_nusc_infos, f)
